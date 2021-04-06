@@ -30,9 +30,10 @@ app.use(passport.session())
 mongoose.connect('mongodb://localhost:27017/userDB', { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true, useFindAndModify: false})
 
 const userSchema =  new mongoose.Schema({
-    email: String,
-    password: String,
-    googleId: String
+  email: String,
+  password: String,
+  googleId: String,
+  secret: String
 })
 
 userSchema.plugin(passportLocalMongoose);
@@ -75,7 +76,6 @@ app.get('/auth/google',
 app.get('/auth/google/secrets', 
   passport.authenticate('google', { failureRedirect: '/login' }),
   function(req, res) {
-    // Successful authentication, redirect home.
     res.redirect('/secrets');
   });
 
@@ -84,18 +84,29 @@ app.get('/login', function (req, res) {
 })
 
 app.get('/secrets',function(req,res){
-    //do something only if user is authenticated
-    if(req.isAuthenticated()){
-        res.render('secrets')
-        
-    } else{
-        res.redirect("/login");
+    User.find({'secret': {$ne:null}}, function (err, foundUser) {
+    if (!err) {
+      if (foundUser) {
+        console.log(foundUser);
+        res.render('secrets', {usersWithSecrets:foundUser})
+      }
+    } else {
+      console.log(err);
     }
+  });
 });
 
 
 app.get('/register', function (req, res) {
   res.render('register')
+})
+
+app.get('/submit', function (req, res) {
+  if(req.isAuthenticated()){
+        res.render('submit')
+    } else{
+        res.redirect("/login");
+    }
 })
 
 app.get('/logout', function(req, res){
@@ -118,19 +129,29 @@ app.post('/register', function (req, res) {
 })
 
 app.post('/login', passport.authenticate('local', { failureRedirect: '/login' }),function(req, res) {
-
     res.redirect('/secrets');
 });
-  //   req.login(user, function (err) {
-  //     if (err) {
-  //     console.log(err);
-  //   } else {
-  //     passport.authenticate('local')(req, res, function () {
-  //       res.redirect('/secrets')
-  //     })
-  //   }
-  // })
-// })
+
+app.post('/submit', function (req, res) {
+  const submittedSecret = req.body.secret
+
+  console.log(submittedSecret);
+  console.log(req.user.id);// from passport
+
+  User.findById(req.user.id, function (err, foundUser) {
+    if (!err) {
+      if (foundUser) {
+        foundUser.secret = submittedSecret
+        foundUser.save(function () {
+          res.redirect('/secrets')
+        })
+      }
+    } else {
+      console.log(err);
+    }
+  })
+})
+
 
 app.listen(3000, function() {
   console.log("Server started on port 3000");
